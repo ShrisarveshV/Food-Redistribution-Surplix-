@@ -1,0 +1,233 @@
+import React, { useEffect, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import 'leaflet/dist/leaflet.css';
+import { usePricing } from '../context/PricingContext';
+import { useLanguage } from '../context/LanguageContext';
+import L from 'leaflet';
+
+let DefaultIcon = L.icon({
+    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+    iconAnchor: [12, 41]
+});
+L.Marker.prototype.options.icon = DefaultIcon;
+
+const Home = () => {
+  const { items } = usePricing();
+  const { t } = useLanguage();
+  const navigate = useNavigate();
+  const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const markersGroupRef = useRef(null);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+    
+    // Initialize pure map instance only once
+    if (!mapInstanceRef.current) {
+      mapInstanceRef.current = L.map(mapRef.current).setView([12.9716, 77.5946], 12);
+      
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(mapInstanceRef.current);
+
+      markersGroupRef.current = L.layerGroup().addTo(mapInstanceRef.current);
+      
+      setTimeout(() => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
+      }, 250);
+    }
+
+    // Clear old markers when items array changes (so it doesn't duplicate)
+    markersGroupRef.current.clearLayers();
+
+    const boundCoordinates = [];
+
+    const visibleItems = items.filter(item => item.status === 'available');
+
+    visibleItems.forEach(item => {
+      if (item.lat && item.lng) {
+        const isSoldOut = item.availableServings === 0 || item.status === 'donated';
+        const buttonHtml = isSoldOut 
+          ? `<div style="background-color: #d1c8b3; color: #3d2616; padding: 6px 12px; border-radius: 999px; text-align: center; font-weight: bold; font-size: 0.9rem;">${t('sold_out')}</div>`
+          : `<a href="/browse" style="display: block; background-color: #2e7d32; color: #ffffff; padding: 6px 12px; border-radius: 999px; text-decoration: none; font-weight: bold; font-size: 0.9rem; text-align: center;">🚀 ${t('claim')}</a>`;
+
+        L.marker([item.lat, item.lng]).addTo(markersGroupRef.current)
+         .bindPopup(`
+           <div style="text-align: center; font-family: sans-serif; min-width: 150px; padding: 5px;">
+             <h3 style="font-weight: bold; font-size: 1.1rem; color: #1f2937; margin: 0 0 5px 0;">${item.name}</h3>
+             <p style="font-size: 0.8rem; color: #4b5563; margin: 0 0 10px 0;">📍 ${item.location}</p>
+             <p style="color: #2e7d32; font-weight: 800; font-size: 1.5rem; margin: 0 0 15px 0;">₹${item.currentPrice}</p>
+             ${buttonHtml}
+           </div>
+         `);
+        boundCoordinates.push([item.lat, item.lng]);
+      }
+    });
+
+    const mockNGOs = [
+      { name: "Akshaya Patra Foundation", location: "Vasanth Nagar, Bengaluru", lat: 12.9830, lng: 77.5925, desc: "Large scale food distribution NGO" },
+      { name: "Feeding India - South", location: "Koramangala, Bengaluru", lat: 12.9352, lng: 77.6245, desc: "Surplus food redistribution" },
+      { name: "Robin Hood Army Area 4", location: "Indiranagar, Bengaluru", lat: 12.9784, lng: 77.6408, desc: "Volunteer based food delivery" },
+      { name: "Local Food Bank", location: "Jayanagar, Bengaluru", lat: 12.9299, lng: 77.5834, desc: "Community food storage and sharing" },
+      { name: "Snehadeep Trust", location: "Frazer Town, Bengaluru", lat: 12.9968, lng: 77.6130, desc: "Welfare for the visually impaired and disabled" },
+      { name: "Goonj Drop Centre", location: "HSR Layout, Bengaluru", lat: 12.9121, lng: 77.6446, desc: "Disaster relief and community development" },
+      { name: "Sparsha Trust", location: "Banashankari, Bengaluru", lat: 12.9175, lng: 77.5562, desc: "Child rights and education focus" },
+      { name: "Mitra Foundation", location: "Malleswaram, Bengaluru", lat: 13.0031, lng: 77.5643, desc: "Elderly care and meal support" },
+      { name: "Seva Foundation", location: "Rajajinagar, Bengaluru", lat: 12.9881, lng: 77.5549, desc: "Community food sharing" },
+      { name: "Raksha NGO", location: "Whitefield, Bengaluru", lat: 12.9698, lng: 77.7499, desc: "Food distribution for daily wage workers" }
+    ];
+
+    const ngoIcon = L.divIcon({
+      className: 'bg-transparent',
+      html: '<div style="background-color: #3b82f6; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 50%; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 2px solid white; font-size: 18px;">🤝</div>',
+      iconSize: [36, 36],
+      iconAnchor: [18, 18]
+    });
+
+    mockNGOs.forEach(ngo => {
+      L.marker([ngo.lat, ngo.lng], { icon: ngoIcon }).addTo(markersGroupRef.current)
+       .bindPopup(`
+         <div style="text-align: center; font-family: sans-serif; min-width: 180px; padding: 5px;">
+           <div style="background-color: #eff6ff; color: #1d4ed8; padding: 4px 8px; border-radius: 12px; font-weight: bold; font-size: 0.7rem; display: inline-block; margin-bottom: 8px;">VERIFIED NGO</div>
+           <h3 style="font-weight: bold; font-size: 1.1rem; color: #1f2937; margin: 0 0 5px 0;">${ngo.name}</h3>
+           <p style="font-size: 0.8rem; color: #4b5563; margin: 0 0 8px 0;">📍 ${ngo.location}</p>
+           <p style="font-size: 0.85rem; color: #111827; margin: 0 0 10px 0; font-weight: 500;">${ngo.desc}</p>
+           <a href="mailto:contact@${ngo.name.replace(/\s+/g, '').toLowerCase()}.org" style="display: block; background-color: #3b82f6; color: #ffffff; padding: 6px 12px; border-radius: 999px; text-decoration: none; font-weight: bold; font-size: 0.9rem; text-align: center;">Donate Surplus Directly</a>
+         </div>
+       `);
+      boundCoordinates.push([ngo.lat, ngo.lng]);
+    });
+
+    // Auto fit map bounds if we have at least one valid coordinate
+    if (boundCoordinates.length > 0) {
+      const bounds = L.latLngBounds(boundCoordinates);
+      mapInstanceRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
+    } else if ("geolocation" in navigator) {
+      // Fallback to user location if empty
+      navigator.geolocation.getCurrentPosition((position) => {
+        if (mapInstanceRef.current) {
+           mapInstanceRef.current.setView([position.coords.latitude, position.coords.longitude], 12);
+        }
+      });
+    }
+
+    // Cleanup happens on unmount
+    return () => {
+      // We don't remove mapInstanceRef.current here so we can reuse it during the component lifecycle
+    };
+  }, [items, t]);
+
+  return (
+    <div className="pt-24 min-h-screen bg-theme-cream flex flex-col items-center text-theme-dark overflow-x-hidden">
+      
+      {/* Hero Section Container */}
+      <section className="w-full relative py-32 md:py-40 text-center flex flex-col items-center z-10 border-b border-theme-creamDark mx-auto">
+        <div 
+          className="absolute inset-0 z-[-5] bg-cover bg-center blur-sm scale-105"
+          style={{ backgroundImage: 'url("/food-waste-ph.webp")' }}
+        ></div>
+        <div className="absolute inset-0 z-[-4] bg-stone-900/40"></div>
+        <div className="absolute inset-0 z-[-3] bg-gradient-to-br from-theme-cream/30 to-theme-green/20 mix-blend-overlay"></div>
+
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[95%] md:w-[900px] h-[130%] md:h-[600px] bg-theme-cream/85 blur-[90px] z-[-2] rounded-full pointer-events-none"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] md:w-[600px] h-[80%] md:h-[400px] bg-theme-yellow/30 blur-[60px] z-[-1] rounded-full pointer-events-none"></div>
+
+        <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight max-w-4xl leading-tight relative z-10 px-4">
+          {t('hero_title')}
+        </h1>
+        <p className="mt-6 text-xl text-theme-dark/90 max-w-2xl px-4 font-medium whitespace-pre-wrap relative z-10">
+          {t('hero_subtitle')}
+        </p>
+        <div className="mt-10 flex gap-4 relative z-10 px-4">
+          <Link to="/browse" className="bg-theme-green text-white px-8 py-4 rounded-full font-bold text-lg hover:bg-green-800 hover:shadow-xl transition-all shadow-md">
+            {t('browse')}
+          </Link>
+          <Link to="/list" className="bg-white text-theme-green px-8 py-4 rounded-full font-bold text-lg border border-theme-creamDark hover:border-theme-green hover:shadow-xl transition-all shadow-md">
+            {t('list_food')}
+          </Link>
+        </div>
+      </section>
+
+      {/* Map Interactive Section - Premium Dark Mode Layout */}
+      <section className="w-full py-32 bg-theme-dark relative border-b-4 border-theme-green overflow-hidden">
+        {/* Glow overlay */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-theme-green/20 rounded-full blur-[120px] pointer-events-none"></div>
+        
+        <div className="max-w-7xl mx-auto px-4 w-full relative z-10 flex flex-col lg:flex-row items-center gap-16">
+          <div className="lg:w-1/3 text-white text-center lg:text-left">
+            <span className="text-theme-green font-extrabold tracking-widest uppercase text-sm mb-3 block">Live Ecosystem</span>
+            <h2 className="text-4xl lg:text-5xl font-extrabold mb-6 leading-tight">{t('map_title')} 🗺️</h2>
+            <p className="text-gray-300 font-medium text-lg leading-relaxed mb-10">
+              Watch real-time food rescues happening across your city. Discover verified NGOs, community organizers, and incredible hyper-local food drops waiting to be safely claimed near you.
+            </p>
+            <div className="flex flex-col sm:flex-row lg:flex-col gap-4">
+              <div className="bg-white/10 p-6 rounded-3xl backdrop-blur-md border border-white/10 hover:bg-white/20 transition-colors cursor-pointer w-full text-left">
+                <p className="font-extrabold text-4xl text-theme-green mb-1 drop-shadow-md">24+</p>
+                <p className="text-sm text-gray-300 font-bold uppercase tracking-wide">Active Communities</p>
+              </div>
+              <div className="bg-white/10 p-6 rounded-3xl backdrop-blur-md border border-white/10 hover:bg-white/20 transition-colors cursor-pointer w-full text-left">
+                <p className="font-extrabold text-4xl text-theme-yellow mb-1 drop-shadow-md">10.5k</p>
+                <p className="text-sm text-gray-300 font-bold uppercase tracking-wide">Meals Rescued Locally</p>
+              </div>
+            </div>
+          </div>
+          <div className="lg:w-2/3 w-full">
+            <div className="h-[500px] lg:h-[650px] w-full rounded-[40px] overflow-hidden shadow-[0_0_80px_rgba(46,125,50,0.4)] border-[6px] border-white/10 relative z-0 bg-white">
+              <div ref={mapRef} style={{ height: '100%', width: '100%' }}></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* What's Waiting in the App block - Features Showcase */}
+      <section className="w-full relative py-40 bg-gradient-to-b from-theme-cream to-white overflow-hidden border-t border-theme-creamDark">
+        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-theme-mint/30 rounded-full blur-[140px] -mr-40 -mt-40 pointer-events-none"></div>
+        <div className="absolute bottom-10 left-0 w-[500px] h-[500px] bg-theme-yellow/20 rounded-full blur-[100px] -ml-20 -mb-20 pointer-events-none"></div>
+        
+        <div className="max-w-7xl mx-auto px-4 w-full relative z-10 text-center">
+          <span className="text-theme-orange font-extrabold tracking-widest uppercase text-sm mb-3 block">Discover Surplix</span>
+          <h2 className="text-5xl lg:text-6xl font-extrabold mb-8 text-theme-dark tracking-tight">Features Waiting For You</h2>
+          <p className="text-xl text-theme-dark/70 font-medium mb-16 max-w-3xl mx-auto">We're more than just a marketplace. We've built an entire ecosystem to ensure absolutely zero food goes to waste.</p>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 pb-10 text-left">
+            {/* Feature 1 */}
+             <div className="bg-white/80 backdrop-blur-xl p-8 rounded-[36px] shadow-xl shadow-theme-green/5 border border-white/80 hover:-translate-y-3 hover:shadow-2xl transition-all duration-500 group relative flex flex-col">
+                 <div className="w-16 h-16 bg-gradient-to-br from-theme-lightGreen to-theme-green text-white rounded-2xl flex items-center justify-center text-3xl mb-6 shadow-md transform rotate-3 group-hover:rotate-12 transition-transform duration-500">🤖</div>
+                 <h3 className="text-xl font-extrabold text-theme-dark mb-3">AI Quality Scanning</h3>
+                 <p className="text-theme-dark/70 font-medium text-[15px] leading-relaxed flex-grow">Every listing is automatically scanned by our computer vision AI to ensure physical freshness and flag decaying items.</p>
+             </div>
+             
+             {/* Feature 2 */}
+             <div className="bg-white/80 backdrop-blur-xl p-8 rounded-[36px] shadow-xl shadow-theme-orange/5 border border-white/80 hover:-translate-y-3 hover:shadow-2xl transition-all duration-500 group relative flex flex-col">
+                 <div className="w-16 h-16 bg-gradient-to-br from-orange-200 to-theme-orange text-white rounded-2xl flex items-center justify-center text-3xl mb-6 shadow-md transform -rotate-3 group-hover:-rotate-12 transition-transform duration-500">🥗</div>
+                 <h3 className="text-xl font-extrabold text-theme-dark mb-3">Dietary & Allergens</h3>
+                 <p className="text-theme-dark/70 font-medium text-[15px] leading-relaxed flex-grow">Strict categorization for Veg, Non-Veg, and Vegan diets alongside transparent warnings for nuts, dairy, and gluten.</p>
+             </div>
+             
+             {/* Feature 3 */}
+             <div className="bg-white/80 backdrop-blur-xl p-8 rounded-[36px] shadow-xl shadow-blue-500/5 border border-white/80 hover:-translate-y-3 hover:shadow-2xl transition-all duration-500 group relative flex flex-col">
+                 <div className="w-16 h-16 bg-gradient-to-br from-blue-200 to-blue-500 text-white rounded-2xl flex items-center justify-center text-3xl mb-6 shadow-md transform rotate-6 group-hover:rotate-0 transition-transform duration-500">🤝</div>
+                 <h3 className="text-xl font-extrabold text-theme-dark mb-3">Direct NGO Donations</h3>
+                 <p className="text-theme-dark/70 font-medium text-[15px] leading-relaxed flex-grow">Connect perfectly good un-purchased bulk food securely to registered local charity foundations.</p>
+             </div>
+             
+             {/* Feature 4 */}
+             <div className="bg-white/80 backdrop-blur-xl p-8 rounded-[36px] shadow-xl shadow-theme-yellow/5 border border-white/80 hover:-translate-y-3 hover:shadow-2xl transition-all duration-500 group relative flex flex-col">
+                 <div className="w-16 h-16 bg-gradient-to-br from-yellow-200 to-theme-yellow text-white rounded-2xl flex items-center justify-center text-3xl mb-6 shadow-md transform -rotate-6 group-hover:rotate-0 transition-transform duration-500">🚜</div>
+                 <h3 className="text-xl font-extrabold text-theme-dark mb-3">Animal Farm Routing</h3>
+                 <p className="text-theme-dark/70 font-medium text-[15px] leading-relaxed flex-grow">If the AI detects highly spoiled organic wastes, the system instantly directs you to agricultural farms for animal compost!</p>
+             </div>
+          </div>
+          <Link to="/browse" className="inline-block bg-theme-dark text-white font-extrabold text-lg px-10 py-5 rounded-full hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/20 transition-all">
+             View All {items.filter(item => item.status === 'available').length} Live Listings ✨
+          </Link>
+        </div>
+      </section>
+    </div>
+  );
+};
+export default Home;
